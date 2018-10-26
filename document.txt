@@ -1,0 +1,12 @@
+how to stop couchdb 
+https://stackoverflow.com/questions/41473449/how-do-i-stop-shutdown-the-native-couchdb-app-on-osx
+
+In terminal , run
+
+launchctl list | grep couchdb
+then on the retnurned value like
+
+99093 0 org.apache.couchdb.288008
+do
+
+launchctl stop "org.apache.couchdb.288008"
