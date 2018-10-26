@@ -1,8 +1,8 @@
 ##author Sheng Tang
-##08/05/2018  16:40
+##08/09/2018  16:40
 
-##library used is py-couchdb from https://github.com/histrio/py-couchdb
-##Document can be find at https://pycouchdb.readthedocs.org/
+##library used is couchdb-python from https://github.com/djc/couchdb-python
+##Document can be find at https://couchdb-python.readthedocs.io/en/latest/
 
 
 
@@ -13,19 +13,20 @@
 ###################################################################################################### 
 #python3
 
-import pycouchdb
+import couchdb
 import json
 import sys
 import os
 import mmh3
-import dictProcesser as dp 
+import fileProcesser 
+import datetime
 
 from treelib import Node, Tree
 
 
 ##connect to database, "admin" as the user name and password to make our life easier
-server = pycouchdb.Server('http://admin:admin@localhost:5984/')
-#server = pycouchdb.Server('http://localhost:5984/')
+server = couchdb.Server('http://admin:admin@localhost:5984/')
+#server = couchdb.Server('http://localhost:5984/')
 
 
 
@@ -52,22 +53,25 @@ def computeID(text,user):
 
 def get_text(db,text_file,user):
 
-	db = server.database(db)
+	database = server[db]
 
 	text = readFile(text_file)
 	id = computeID(text,user)
 
-	doc = db.get(id)
+	doc = database.get(id)
 	return doc
 
 
 def get_text_all(db,text_file):
+	database = server[db]
+
 	text = readFile(text_file)
-
-	text_id = computeID(text,user)
-
+	text_id = str(mmh3.hash(text,signed=False))
 	start_key= text_id
 	end_key = text_id +"ZZZZZZZZZZ"
+
+	for item in database.view('_all_docs', startkey=start_key, endkey=end_key):
+		print(item.id)
 
 
 
@@ -75,7 +79,7 @@ def get_text_all(db,text_file):
 def query_view(db,viewName):
 
 	##connect to databse
-	db = server.database(db)
+	databse = server[db]
 
 	## query view from couchdb
 	result = db.query(viewName+"/id_str")
@@ -94,13 +98,13 @@ def query_grouped_view(db,viewName):
 	return list(result)
 
 
-def get_data(db,dataname):
+def get_data(db,docID):
 
 	##connect to databse
-	db = server.database(db)
+	database = server[db]
 
 	# get data
-	result=db.get(dataname)
+	result=db.get(docID)
 
 	return result
 
@@ -109,7 +113,7 @@ def save_file(db,file):
 	#save json file into couchdb
 
 	##connect to databse
-	db = server.database(db)
+	database = server[db]
 
 	#load json file
 	fload = open(file,'r')
@@ -125,43 +129,128 @@ def save_text(db,text):
 	} 
 
 	##connect to databse
-	db = server.database(db)
+	database = server[db]
 
-	db.save(_doc)
-
+	database.save(_doc)
 
 def save_annotated_text(db,text_file,user,annotation_file):
-	##save text into couchdb 
-
 	text = readFile(text_file)
 	annotation_ann = readFile(annotation_file)
 
-
 	id = computeID(text,user)
 
-	annotation = dp.readAnnotation
+	wordsCount = fileProcesser.readText(text_file)
 
-	trees= dp.tree_of_tokens(annotation[0])
-	tree_of_chemicals=trees[0].to_dict(with_data=True)
-	tree_of_diseases=trees[1].to_dict(with_data=True)
-	tree_of_genes=trees[2].to_dict(with_data=True)
+	tokensDic = {}
+	tokenIndex = {}
+	relations = []
+	predicationsDic = {}
 
-	_doc ={
-		"_id":id,
-		"annotater":user,
-		"text":text,
-		"annotation":annotation_ann
-		"Chemicals": tree_of_chemicals
-		"Diseases" : tree_of_diseases
-		"Genes" : tree_of_genes
-		"Relations" : annotation[1]
-		"count" : annotation[2]
-	} 
+	with open(annotation_file,'r') as f:
+		content = f.read()
+	lines = content.split('\n')
+	for i in range(len(lines)-1): ##aviod last line, where has noting
+		splitedLine=lines[i].split('\t')
+		index = splitedLine[0]
 
-	##connect to databse
-	db = server.database(db)
+		if(index[0]=='T'):###tokens
+			token = splitedLine[2]
+			tokenConverted = token.title()
+			tokenIndex[index] = token
+			if token in tokensDic.keys():
+				num = tokensDic[token] +1
+				tokensDic[token] = num
+			else:
+				tokensDic[token] = 1
+		else:
+			relation = splitedLine[1].split(' ')[0]
+			Arg1Index = splitedLine[1].split(' ')[1].split(":")[1]
+			Arg2Index = splitedLine[1].split(' ')[2].split(":")[1]
+			relations.append({"relation":relation,"Arg1":Arg1Index,"Arg2":Arg2Index})
 
-	db.save(_doc)
+	for item in relations:
+		arg1 = tokenIndex[item["Arg1"]]
+		arg2 = tokenIndex[item["Arg2"]]
+		relation = item["relation"]
+
+		if arg1+relation in predicationsDic.keys():
+			num = predicationsDic[arg1+relation]
+			predicationsDic[arg1+relation] = num
+		else:
+			predicationsDic[arg1+relation] = 1
+
+		if relation+arg2 in predicationsDic.keys():
+			num = predicationsDic[relation+arg2]
+			predicationsDic[relation+arg2] = num
+		else:
+			predicationsDic[relation+arg2] = 1
+
+		if arg1+relation+arg2 in predicationsDic.keys():
+			num = predicationsDic[arg1+relation+arg2]
+			predicationsDic[arg1+relation+arg2] = num
+		else:
+			predicationsDic[arg1+relation+arg2] = 1	
+
+
+	doc1 = {"text":text,"annotation":annotation_ann}
+	doc2 = {"tokens":tokensDic,
+			"predications":predicationsDic,
+			"wordsCount":wordsCount}
+
+	fileDatabase = server[db]
+	searchDatabase = server[db+"search"]
+
+	fileDatabase[id] = doc1
+	searchDatabase[id] = doc2
+
+
+
+
+# def save_annotated_text(db,text_file,user,annotation_file):
+# 	##save text into couchdb 
+# 	text = readFile(text_file)
+# 	annotation_ann = readFile(annotation_file)
+
+
+# 	id = computeID(text,user)
+
+# 	wordCount = fileProcesser.readText(text_file)
+# 	tokens,relations,predications,partitions = fileProcesser.readAnnotation(annotation_file)
+# 	tree,tokensNotInTree = fileProcesser.saveInTree(tokens)
+
+# 	_doc ={
+# 		"_id":id,
+# 		"annotater":user,
+# 		"text":text,
+# 		"annotation":annotation_ann,
+# 		"predications" : predications,
+# 		"Anatomy" : partitions[0],
+# 		"Organisms" : partitions[1],
+# 		"Diseases" : partitions[2],
+# 		"Chemicals_and_Drugs" : partitions[3],
+# 		"Analytical_Diagnostic_and_Therapeutic_Techniques_and_Equipment" : partitions[4],
+# 		"Psychiatry_and_Psychology" : partitions[5],
+# 		"Phenomena_and_Processes" : partitions[6],
+# 		"Disciplines_and_Occupations" : partitions[7],
+# 		"Anthropology_Education_Sociology_and_Social_Phenomena" : partitions[8],
+# 		"Technology_Industry_Agriculture" : partitions[9],
+# 		"Humanities" : partitions[10],
+# 		"Information_Science" : partitions[11],
+# 		"Named_Groups" : partitions[12],
+# 		"Health_Care" : partitions[13],
+# 		"Publication_Characteristics" : partitions[14],
+# 		"Geographicals" : partitions[15],
+# 		"otherTokens" : partitions[16],
+# 		"tokens" : tokens,
+# 		"Relations" : relations,
+# 		"wordCount" : wordCount
+
+# 	} 
+
+# 	##connect to databse
+# 	db = server.database(db)
+
+# 	db.save(_doc)
 
 
 ############################################################################################################################
@@ -235,3 +324,17 @@ def create_view(db,map,reduce,key):
 	return {"db":couchdb,"view_name":view_name,"key":key,"group":group}
 
 	
+def databaseCount(db):
+	## db = "demo8search"
+	database = server[db]
+	databaseWordsCount = 0
+	for row in database.view("_all_docs"):
+		print(row.id)
+		if database[row.id]["wordsCount"] != null:
+			databaseWordsCount = databaseWordsCount + database[row.id]["wordsCount"]
+	info = database.info()
+	docsCount = info["doc_count"]
+
+	today=datetime.date.today()
+
+	database[str(today)] = {"databaseDocsCount":docsCount,"databaseWordsCount":databaseWordsCount}

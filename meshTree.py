@@ -84,11 +84,8 @@ def creatTree(tokens):
 
 def createDictionary(tokens):
 	dic = {}
-	cou=0
-	count=0
 
 	for token in tokens:
-		cou = cou +1
 		current_id = []
 		token_str = token[0]
 		token_id = token[1]
@@ -96,10 +93,8 @@ def createDictionary(tokens):
 			current_id.append(token_id)
 			dic[token_str] = current_id
 		else: 
-			count = count +1
 			dic[token_str].extend([token_id])
 			dic[token_str] = dic[token_str]
-	print(cou,"tokens in total, with",count,"tokens have mutipile meanings")
 	return dic
 
 
@@ -123,10 +118,15 @@ def containsToken(token):
 	if token in meshDic.keys():
 		return True
 	else:
-		return 
+		return False
 
 def getTag(nid):
 	return meshTree.get_node(nid).tag
+
+def getnids(token):
+	if (containsToken(token)):
+		nids = meshDic[token]
+	return nids
 
 def getAncestors(token):
 	ancestorsList=[]
@@ -145,3 +145,56 @@ def getAncestors(token):
 
 	return ancestorsList
 
+
+def getDescendants(token,distance = False):
+	if distance == False:
+		descendants = []
+		if (containsToken(token)):
+			nids = meshDic[token]
+			for nid in nids:
+				subTree = meshTree.subtree(nid)
+				allNodes = subTree.all_nodes()
+				for node in allNodes:
+					if node.tag in descendants:
+						pass
+					else: 
+						descendants.append(node.tag)
+		return descendants
+	else:
+		descendants = {}
+		if (containsToken(token)):
+			nids = meshDic[token]
+			for nid in nids:
+				subTree = meshTree.subtree(nid)
+				allNodes = subTree.all_nodes()
+				for node in allNodes:
+					if node.tag in descendants.keys():
+						if subTree.level(node.identifier) < descendants[node.tag]:
+							descendants[node.tag] = subTree.level(node.identifier)
+						else:
+							pass
+					else:
+						descendants[node.tag] = subTree.level(node.identifier)
+		return descendants
+
+
+
+
+
+def getTokenAncestors(token):
+	ancestorsList=[]
+
+	if (containsToken(token)):
+		nids = meshDic[token]
+		for nid in nids:
+			ancestors = []	
+			while(notRoot(nid)):
+				parent = meshTree.parent(nid)
+				ancestors.append(parent.tag)
+				nid = parent.identifier
+			ancestors = list(ancestors[:-2])
+			ancestorsList.append(ancestors)
+	else:
+		print("cannot find "+token+" in the MeSH!")
+
+	return ancestorsList
