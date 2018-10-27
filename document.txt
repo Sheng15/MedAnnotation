@@ -10,3 +10,17 @@ then on the retnurned value like
 do
 
 launchctl stop "org.apache.couchdb.288008"
+
+
+Managing users in 
+
+https://stackoverflow.com/questions/35941497/managing-users-in-users-with-couchdb-python
+
+
+
+How to change permissions on a couchdb database with python
+
+https://stackoverflow.com/questions/23566320/how-to-change-permissions-on-a-couchdb-database-with-python
+
+
+

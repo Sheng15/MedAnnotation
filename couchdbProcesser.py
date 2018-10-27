@@ -6,11 +6,11 @@
 
 
 
-######################################################################################################
-#############	general methods that can be invoked to perform basic database process    ############# 
-#############	inclouding：query view，query a grouped view，obtain data，save file     #############
-#############                or data into couchdb. And a method to create view           #############
-###################################################################################################### 
+###########################################################################################################
+#############	Methods that can be used to perform basic database process   				  ############# 
+#############	inclouding：connect server, authentication，create user，set database member， #############
+#############   save and fetch data and of course query 							          #############
+###########################################################################################################
 #python3
 
 import couchdb
@@ -24,12 +24,123 @@ import datetime
 from treelib import Node, Tree
 
 
-##connect to database, "admin" as the user name and password to make our life easier
-server = couchdb.Server('http://admin:admin@localhost:5984/')
-#server = couchdb.Server('http://localhost:5984/')
+##############  connect to couch db   ###########################
+'''
+recommendation of general usage there：
+server = connect(ip_address) //get a basic couch server
+try :
+	authentication = loginUser(server，username， password) 
+	authServer = authConnection(ip_address,username,password)
+	logoutuser(authentication)
+except Exception as e:
+	print("failed to establish an authentication connection!")
+
+## this will make sure only establish valid connection
+## should have some better solution there！！
+
+'''
+
+def connect(ip_address):
+	'''
+	This gets you a Server object, representing a CouchDB server. 
+	pass the ip_address, the port should also be provided.
+
+	Parameters
+	• ip_address  – the ip_address of couchdb server, 
+				   	the port should also be provided.
+	Returns a couchdb server object
+
+	By default, let assumes CouchDB is running on localhost:5984,
+	pass ip_address = "http://localhost:5984",
+	If CouchDB server is running elsewhere, set it up like this:
+	ip_address = "http://otherIP_address:5984"
+
+	'''
+	server = couchdb.Server(ip_address)
+	return server
+	## it is only a server object without any checking whether the 
+	## server is running or not
+
+def authConnection(ip_address,username,password):
+	'''
+	pass authentication credentials and/or use SSL to create a 
+	server object with all the authority the user has 
+	but the validation of username and password is absent
+	Parameters
+	• ip_address  – the ip_address of couchdb server, 
+				   		the port should also be provided.
+	• username 	  – name of regular user, normally user id
+	• password    – password of regular user
+	Returns a couchdb server object
+	'''
+	credentials = "http://"+username+":"+password+"@"+ip_address
+	server = couchdb.Server(credentials)
+	return server
+
+
+def loginUser(server,username,password):
+	'''
+	Login regular user in couchDB
+	Parameters
+	• server    –	a couchDB server to login 
+	• username  – 	name of regular user, normally user id
+	• password  – 	password of regular user
+	Returns authentication token
+	'''
+	try:
+		authentication = server.login(username,password)
+		print("login as "+username+" successfully!")
+		return authentication
+		## it only used for authentication check
+		## it will not create a server object with any authority
+	except Exception as e:
+		print("login failed!")
+
+
+def logoutUser(server,authentication):
+	'''
+	Logout regular user in couch 
+	• server     		–	a couchDB server to login 
+	• authentication    – 	authentication token
+	
+	returns true if logout successfully.
+    '''
+	try:
+		server.logout(authentication)
+		print("logout successfully")
+	except Exception as e:
+		print("logout failed")
+
+
+###########  set database admins and members  ####################
+def setPermissions(ip_address,adminUserName,adminPassword,db,admins,members):
+	try:
+		server = authConnection(ip_address,adminUserName,adminPassword)
+		database = server[db]
+		security_doc=database.resource.get_json("_security")[2]
+
+		adminsToAdd = []
+		membersToAdd = []
+		for admin in admins:
+			adminsToAdd.append(admin+",")
+		for member in members:
+			membersToAdd,append(member+"")
+
+
+		
 
 
 
+db.resource.put("_security",{u'admins': {u'names': [u'admin1','admin2','admin3'], u'roles': []}, u'members': {u'names': [], u'roles': []}})
+
+		_doc = "_security",{u'admins': {u'names':admins,u'roles': []},u'members': {u'names': members, u'roles': []}}
+		
+		database.resource.put(_doc)	
+	except Exception as e:
+		raise
+	
+					
+	
 
 ###########  support functions ######################
 
