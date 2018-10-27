@@ -1,7 +1,7 @@
 ##author Sheng Tang
 ##08/09/2018  16:40
 
-##library used is couchdb-python from https://github.com/djc/couchdb-python
+##mainly use couchdb-python library，source code at https://github.com/djc/couchdb-python
 ##Document can be find at https://couchdb-python.readthedocs.io/en/latest/
 
 
@@ -9,7 +9,6 @@
 ###########################################################################################################
 #############	Methods that can be used to perform basic database process   				  ############# 
 #############	inclouding：connect server, authentication，create user，set database member， #############
-#############   save and fetch data and of course query 							          #############
 ###########################################################################################################
 #python3
 
@@ -17,28 +16,31 @@ import couchdb
 import json
 import sys
 import os
-import mmh3
 import fileProcesser 
 import datetime
+import user
 
 from treelib import Node, Tree
 
 
-##############  connect to couch db   ###########################
-'''
-recommendation of general usage there：
-server = connect(ip_address) //get a basic couch server
-try :
-	authentication = loginUser(server，username， password) 
-	authServer = authConnection(ip_address,username,password)
-	logoutuser(authentication)
-except Exception as e:
-	print("failed to establish an authentication connection!")
+###############################################################################################
+###############################    connect to couch db   ######################################
+###############################################################################################
 
-## this will make sure only establish valid connection
-## should have some better solution there！！
+	'''
+	recommendation of general usage there：
+	server = connect(ip_address) //get a basic couch server
+	try :
+		authentication = loginUser(server，username， password) 
+		authServer = authConnection(ip_address,username,password)
+		logoutuser(authentication)
+	except Exception as e:
+		print("failed to establish an authentication connection!")
 
-'''
+	## this will make sure only establish valid connection
+	## should have some better solution there！！
+
+	'''
 
 def connect(ip_address):
 	'''
@@ -46,8 +48,7 @@ def connect(ip_address):
 	pass the ip_address, the port should also be provided.
 
 	Parameters
-	• ip_address  – the ip_address of couchdb server, 
-				   	the port should also be provided.
+	• ip_address  – the ip_address of couchdb server, the port should also be provided.
 	Returns a couchdb server object
 
 	By default, let assumes CouchDB is running on localhost:5984,
@@ -67,8 +68,7 @@ def authConnection(ip_address,username,password):
 	server object with all the authority the user has 
 	but the validation of username and password is absent
 	Parameters
-	• ip_address  – the ip_address of couchdb server, 
-				   		the port should also be provided.
+	• ip_address  – the ip_address of couchdb server, the port should also be provided.
 	• username 	  – name of regular user, normally user id
 	• password    – password of regular user
 	Returns a couchdb server object
@@ -111,341 +111,150 @@ def logoutUser(server,authentication):
 	except Exception as e:
 		print("logout failed")
 
+###############################################################################################
+#################				 database permission  				  #########################
+###############################################################################################
 
-###########  set database admins and members  ####################
-def setPermissions(ip_address,adminUserName,adminPassword,db,admins,members):
+
+def setPermissions(server,db,admins,members):
+	'''
+	set the admins and members of a database
+	admins have admins access to this database.
+	members have members access to this database.
+	admin access is allowed to do anything to the database.
+	member access is allowed to write (and edit) documents to the DB except for design documents.
+	the role of a user is left blank for further development.
+	for more detail,see http://docs.couchdb.org/en/stable/api/database/security.html
+	Parameters
+	• server 	 	– 	a couchdb server object with admin authority
+	• db  			 – 	the name of database that being set permission
+	• admins  		 – 	a list of user names of users to be set as admins of the database
+	• members  		 – 	a list of user names of users to be set as members of the database
+
+	raise exception is failed to set 
+	'''
+
+	## a database is public(everyone is admin) if no admin and member is defined!
+	## set permission immediately after the database is created.
+	## However, this method will just set the permissions according to the given list,
+	## without any check that whether the given user is exist 
+	## this method will over write any former set！！！！
+
 	try:
-		server = authConnection(ip_address,adminUserName,adminPassword)
+		database = server[db]
+		database.resource.put("_security",{u'admins': {u'names':admins,u'roles': []},u'members': {u'names': members, u'roles': []}})
+		print("set permission successfully")
+	except Exception as e:
+		print(e)
+	
+def permissionInfo(server,db):
+	'''
+	fetch the permissionInfo of a database
+	Parameters
+	• server 	 – 	a couchdb server object with  authority
+	Returns a dict of current admins and members or raise exception
+	for example: 
+	{'admins': {'names': ['admin1', 'admin2', 'admin3'], 'roles': []}, 'members': {'names': ['member1'], 'roles': []}}
+	'''
+	try:
 		database = server[db]
 		security_doc=database.resource.get_json("_security")[2]
-
-		adminsToAdd = []
-		membersToAdd = []
-		for admin in admins:
-			adminsToAdd.append(admin+",")
-		for member in members:
-			membersToAdd,append(member+"")
-
-
-		
-
-
-
-db.resource.put("_security",{u'admins': {u'names': [u'admin1','admin2','admin3'], u'roles': []}, u'members': {u'names': [], u'roles': []}})
-
-		_doc = "_security",{u'admins': {u'names':admins,u'roles': []},u'members': {u'names': members, u'roles': []}}
-		
-		database.resource.put(_doc)	
+		return security_doc
 	except Exception as e:
-		raise
-	
-					
-	
-
-###########  support functions ######################
-
-def readFile(file):
-	f = open(file,'r')
-	result = ''
-	for line in f.readlines():
-		result = result+line
-	f.close()
-	return result
-
-def computeID(text,user):
-	## id of document
-	text_id = str(mmh3.hash(text,signed=False))
-	user_id = str(mmh3.hash(user,signed=False))
-	id = text_id+user_id
-	return id
-
-
-#########simple get,query,obtain,save methods #############
-
-def get_text(db,text_file,user):
-
-	database = server[db]
-
-	text = readFile(text_file)
-	id = computeID(text,user)
-
-	doc = database.get(id)
-	return doc
-
-
-def get_text_all(db,text_file):
-	database = server[db]
-
-	text = readFile(text_file)
-	text_id = str(mmh3.hash(text,signed=False))
-	start_key= text_id
-	end_key = text_id +"ZZZZZZZZZZ"
-
-	for item in database.view('_all_docs', startkey=start_key, endkey=end_key):
-		print(item.id)
-
-
-
-
-def query_view(db,viewName):
-
-	##connect to databse
-	databse = server[db]
-
-	## query view from couchdb
-	result = db.query(viewName+"/id_str")
-
-	return list(result)
-
-def query_grouped_view(db,viewName):
-	##query view that is grouped
-
-	##connect to databse
-	db = server.database(db)
-
-	## query view from couchdb
-	result = db.query(viewName+"/id_str",group='true')
-
-	return list(result)
-
-
-def get_data(db,docID):
-
-	##connect to databse
-	database = server[db]
-
-	# get data
-	result=db.get(docID)
-
-	return result
-
-
-def save_file(db,file):
-	#save json file into couchdb
-
-	##connect to databse
-	database = server[db]
-
-	#load json file
-	fload = open(file,'r')
-	doc = json.load(fload)
-
-	db.save(doc)
-
-def save_text(db,text):
-
-	_doc ={
-		"_id":id,
-		"text":text,
-	} 
-
-	##connect to databse
-	database = server[db]
-
-	database.save(_doc)
-
-def save_annotated_text(db,text_file,user,annotation_file):
-	text = readFile(text_file)
-	annotation_ann = readFile(annotation_file)
-
-	id = computeID(text,user)
-
-	wordsCount = fileProcesser.readText(text_file)
-
-	tokensDic = {}
-	tokenIndex = {}
-	relations = []
-	predicationsDic = {}
-
-	with open(annotation_file,'r') as f:
-		content = f.read()
-	lines = content.split('\n')
-	for i in range(len(lines)-1): ##aviod last line, where has noting
-		splitedLine=lines[i].split('\t')
-		index = splitedLine[0]
-
-		if(index[0]=='T'):###tokens
-			token = splitedLine[2]
-			tokenConverted = token.title()
-			tokenIndex[index] = token
-			if token in tokensDic.keys():
-				num = tokensDic[token] +1
-				tokensDic[token] = num
-			else:
-				tokensDic[token] = 1
-		else:
-			relation = splitedLine[1].split(' ')[0]
-			Arg1Index = splitedLine[1].split(' ')[1].split(":")[1]
-			Arg2Index = splitedLine[1].split(' ')[2].split(":")[1]
-			relations.append({"relation":relation,"Arg1":Arg1Index,"Arg2":Arg2Index})
-
-	for item in relations:
-		arg1 = tokenIndex[item["Arg1"]]
-		arg2 = tokenIndex[item["Arg2"]]
-		relation = item["relation"]
-
-		if arg1+relation in predicationsDic.keys():
-			num = predicationsDic[arg1+relation]
-			predicationsDic[arg1+relation] = num
-		else:
-			predicationsDic[arg1+relation] = 1
-
-		if relation+arg2 in predicationsDic.keys():
-			num = predicationsDic[relation+arg2]
-			predicationsDic[relation+arg2] = num
-		else:
-			predicationsDic[relation+arg2] = 1
-
-		if arg1+relation+arg2 in predicationsDic.keys():
-			num = predicationsDic[arg1+relation+arg2]
-			predicationsDic[arg1+relation+arg2] = num
-		else:
-			predicationsDic[arg1+relation+arg2] = 1	
-
-
-	doc1 = {"text":text,"annotation":annotation_ann}
-	doc2 = {"tokens":tokensDic,
-			"predications":predicationsDic,
-			"wordsCount":wordsCount}
-
-	fileDatabase = server[db]
-	searchDatabase = server[db+"search"]
-
-	fileDatabase[id] = doc1
-	searchDatabase[id] = doc2
-
-
-
-
-# def save_annotated_text(db,text_file,user,annotation_file):
-# 	##save text into couchdb 
-# 	text = readFile(text_file)
-# 	annotation_ann = readFile(annotation_file)
-
-
-# 	id = computeID(text,user)
-
-# 	wordCount = fileProcesser.readText(text_file)
-# 	tokens,relations,predications,partitions = fileProcesser.readAnnotation(annotation_file)
-# 	tree,tokensNotInTree = fileProcesser.saveInTree(tokens)
-
-# 	_doc ={
-# 		"_id":id,
-# 		"annotater":user,
-# 		"text":text,
-# 		"annotation":annotation_ann,
-# 		"predications" : predications,
-# 		"Anatomy" : partitions[0],
-# 		"Organisms" : partitions[1],
-# 		"Diseases" : partitions[2],
-# 		"Chemicals_and_Drugs" : partitions[3],
-# 		"Analytical_Diagnostic_and_Therapeutic_Techniques_and_Equipment" : partitions[4],
-# 		"Psychiatry_and_Psychology" : partitions[5],
-# 		"Phenomena_and_Processes" : partitions[6],
-# 		"Disciplines_and_Occupations" : partitions[7],
-# 		"Anthropology_Education_Sociology_and_Social_Phenomena" : partitions[8],
-# 		"Technology_Industry_Agriculture" : partitions[9],
-# 		"Humanities" : partitions[10],
-# 		"Information_Science" : partitions[11],
-# 		"Named_Groups" : partitions[12],
-# 		"Health_Care" : partitions[13],
-# 		"Publication_Characteristics" : partitions[14],
-# 		"Geographicals" : partitions[15],
-# 		"otherTokens" : partitions[16],
-# 		"tokens" : tokens,
-# 		"Relations" : relations,
-# 		"wordCount" : wordCount
-
-# 	} 
-
-# 	##connect to databse
-# 	db = server.database(db)
-
-# 	db.save(_doc)
-
-
-############################################################################################################################
-######  only create a view if there needs a new one or the map_reduce function have been updated      ######################
-######              use query if you just want to get your data from an exist view !!!                ######################
-############################################################################################################################
-
-def create_view(db,map,reduce,key):
-
-	#create view with provided map and reduce function 
-
-	#pass http://username:password@ip_address:5984/ to server constructor:
-	couchdb = server.database(db)
-
-	#the view_name must be  map + reduce
-	view_name = map + reduce
-
-	# get the path of map function and read it
-	map_dir=os.path.abspath('.')+"/map_reduce_function/"+map+".js"
-	map_func = open(map_dir).read()
-	#print (map_func)
-
-
-	#not grouped as default
-	group = 'false'
-
-	#design view
-	if reduce == '':
-		_doc= {
-    		"_id" : "_design/"+view_name,
-    		"views" : {
-    			key:{
-    				"map" : map_func,
-    			}
-    		}
-    	}
-		#print (_doc)
+		print(e)	
+
+
+###############################################################################################
+#######################               user management                       ###################
+###############################################################################################	
+
+def addUser(server,username,password):
+	'''
+	create a user to the database, three things have been done.
+	1. create and add a new user to couch if not collide；
+	2. create two database for this user
+	3. set permission of the new database
+	Parameters
+	• server 	 	– 	a couchdb server object with admin authority
+	• username   	– 	name of regular user, normally user id
+	• password   	– 	password of regular user
+	raise exception if there is 
+	'''
+	try:
+		##step 1: create and add user
+		server = authConnection(ip_address,adminUserName,adminPassword)
+		server.add_user(username,password)
+		##step 2: create database
+		## database named with "user" will used to store original files
+		## database named with “userSearch” will used as an insex of former db
+		database = username
+		databaseSearch = username + "search"
+		server.create(database)
+		server.create(databaseSearch)
+		##step 3: set permission
+		admins = [adminUserName,username]
+		members = [adminUserName,username]
+
+	except Exception as e:
+		print(e)
+
+
+def removeUser(username,purge = False):
+	'''
+	remove a user 
+	Parameters
+	• server 	 	– 	a couchdb server object with admin authority
+	• username   	– 	name of regular user, normally user id
+	• purge	   	 	–  	delete the users' database when remove the user(purge = False, not purge by default)
+	raise exception if there is 
+	'''
+	if not purge:
+		try:
+			server.remove_user(username)
+		except Exception as e:
+			print(e)
 	else:
-		group = 'true'
-		if reduce in "_sum _count _stats":
-			reduce_func = reduce
-		else:
-			reduce_dir = os.path.abspath('.')+"/map_reduce_function/"+reduce+".js"
-			reduce_func = open(reduce_dir).read()
-		_doc= {
-    		"_id" : "_design/"+view_name,
-    		"views" : {
-    			key:{
-    				"map" : map_func,
-    				"reduce" : reduce_func,
-    			}
-    		}
-    	}
-		#print (_doc)
+		## purge a user
+		try:
+			server.remove_user(username)
+			server.delete(username)
+			server.delete(username+"Search")
+		except Exception as e:
+			print(e)
+		
 
-	#create view 	
-	if "_design/"+view_name in couchdb:
-		#view already there，delete and re-create in case function has benn modified
-		couchdb.delete("_design/"+view_name)
-		doc = couchdb.save(_doc)
-		#print("view already exist")
-	else:
-		# create a view if its not there 
-		doc = couchdb.save(_doc)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 	
-	##return :      db     : the name of database where you create your biew
-	##			view_name  : map+reduce, which can be used to query your view
-	##				key    : just "id_str" the most time in our design
-	##			   group   : group is true if reduce function is used    		
-	return {"db":couchdb,"view_name":view_name,"key":key,"group":group}
-
-	
-def databaseCount(db):
-	## db = "demo8search"
-	database = server[db]
-	databaseWordsCount = 0
-	for row in database.view("_all_docs"):
-		print(row.id)
-		if database[row.id]["wordsCount"] != null:
-			databaseWordsCount = databaseWordsCount + database[row.id]["wordsCount"]
-	info = database.info()
-	docsCount = info["doc_count"]
-
-	today=datetime.date.today()
-
-	database[str(today)] = {"databaseDocsCount":docsCount,"databaseWordsCount":databaseWordsCount}
