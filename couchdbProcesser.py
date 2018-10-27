@@ -68,9 +68,9 @@ def authConnection(ip_address,username,password):
 	server object with all the authority the user has 
 	but the validation of username and password is absent
 	Parameters
-	• ip_address  – the ip_address of couchdb server, the port should also be provided.
-	• username 	  – name of regular user, normally user id
-	• password    – password of regular user
+	• ip_address – the ip_address of couchdb server, the port should also be provided.
+	• username 	 – name of regular user, normally user id
+	• password   – password of regular user
 	Returns a couchdb server object
 	'''
 	credentials = "http://"+username+":"+password+"@"+ip_address
@@ -82,9 +82,9 @@ def loginUser(server,username,password):
 	'''
 	Login regular user in couchDB
 	Parameters
-	• server    –	a couchDB server to login 
-	• username  – 	name of regular user, normally user id
-	• password  – 	password of regular user
+	• server   –	a couchDB server to login 
+	• username – 	name of regular user, normally user id
+	• password – 	password of regular user
 	Returns authentication token
 	'''
 	try:
@@ -100,8 +100,8 @@ def loginUser(server,username,password):
 def logoutUser(server,authentication):
 	'''
 	Logout regular user in couch 
-	• server     		–	a couchDB server to login 
-	• authentication    – 	authentication token
+	• server 		 –	a couchDB server to login 
+	• authentication – 	authentication token
 	
 	returns true if logout successfully.
     '''
@@ -126,10 +126,10 @@ def setPermissions(server,db,admins,members):
 	the role of a user is left blank for further development.
 	for more detail,see http://docs.couchdb.org/en/stable/api/database/security.html
 	Parameters
-	• server 	 	– 	a couchdb server object with admin authority
-	• db  			 – 	the name of database that being set permission
-	• admins  		 – 	a list of user names of users to be set as admins of the database
-	• members  		 – 	a list of user names of users to be set as members of the database
+	• server  – a couchdb server object with admin authority
+	• db 	  – the name of database that being set permission
+	• admins  – a list of user names of users to be set as admins of the database
+	• members – a list of user names of users to be set as members of the database
 
 	raise exception is failed to set 
 	'''
@@ -151,7 +151,7 @@ def permissionInfo(server,db):
 	'''
 	fetch the permissionInfo of a database
 	Parameters
-	• server 	 – 	a couchdb server object with  authority
+	• server – a couchdb server object with  authority
 	Returns a dict of current admins and members or raise exception
 	for example: 
 	{'admins': {'names': ['admin1', 'admin2', 'admin3'], 'roles': []}, 'members': {'names': ['member1'], 'roles': []}}
@@ -175,9 +175,9 @@ def addUser(server,username,password):
 	2. create two database for this user
 	3. set permission of the new database
 	Parameters
-	• server 	 	– 	a couchdb server object with admin authority
-	• username   	– 	name of regular user, normally user id
-	• password   	– 	password of regular user
+	• server   – a couchdb server object with admin authority
+	• username – name of regular user, normally user id
+	• password – password of regular user
 	raise exception if there is 
 	'''
 	try:
@@ -203,9 +203,9 @@ def removeUser(username,purge = False):
 	'''
 	remove a user 
 	Parameters
-	• server 	 	– 	a couchdb server object with admin authority
-	• username   	– 	name of regular user, normally user id
-	• purge	   	 	–  	delete the users' database when remove the user(purge = False, not purge by default)
+	• server   – a couchdb server object with admin authority
+	• username – name of regular user, normally user id
+	• purge    – delete the users' database when remove the user(purge = False, not purge by default)
 	raise exception if there is 
 	'''
 	if not purge:
