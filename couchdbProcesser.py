@@ -163,6 +163,12 @@ def permissionInfo(server,db):
 	except Exception as e:
 		print(e)	
 
+def updatePermission(server,db,newPermission):
+	'''
+	uapate permission with provided without overwrite old permission 
+	'''
+	print("TO BE IMPLEMENTED FURTHER")
+
 
 ###############################################################################################
 #######################               user management                       ###################
@@ -222,39 +228,3 @@ def removeUser(username,purge = False):
 		except Exception as e:
 			print(e)
 		
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	
