@@ -1,90 +1,92 @@
+##author Sheng Tang
+##15/10/2018  18：42
+
+'''
+use the mothods here to query the database
+including :
+keyword search
+senmatic search
+predication search
+senmatic & predication search
+
+use mango query that supported by couchdb in version 2.0 or higher
+for detail, see "http://docs.couchdb.org/en/2.2.0/api/database/find.html"
+'''
 import couchdb
-import json
 import datetime
 import math
+import termNormalise
+import category
 
 import meshTree
 
 
-server = couchdb.Server('http://admin:admin@localhost:5984/')
-
-def findToken(token):
-	mango = {"selector":{"tree":{"Root": {"children": [{"Anatomy": {"children": [{"Fluids and Secretions": {"children": [{"Body Fluids": {"children": ["Blood"]}}]}}]}}]}}},
-			"field" : ['_id'],
-			'sort' : [{'_id': 'asc'}]}
 
 
-def hasToken(token,myList):
-	for l in myList:
-		if token==l:
-			return True
-	return False
-
-def category(token):
-	tokenConverted = token.title()
-	if meshTree.containsToken(tokenConverted):
-		nids = meshTree.meshDic[tokenConverted]
-		for nid in nids:
-			if  ('A' in nid):
-				return "Anatomy"
-			elif('B' in nid):
-				return "Organisms"
-			elif('C' in nid):
-				return "Diseases"
-			elif('D' in nid):
-				return "Chemicals_and_Drugs"
-			elif('E' in nid):
-				return "Analytical_Diagnostic_and_Therapeutic_Techniques_and_Equipment"
-			elif('F' in nid):
-				return "Psychiatry_and_Psychology"
-			elif('G' in nid):
-				return "Phenomena_and_Processes"
-			elif('H' in nid):
-				return "Disciplines_and_Occupations"
-			elif('I' in nid):
-				return "Anthropology_Education_Sociology_and_Social_Phenomena"
-			elif('J' in nid):
-				return "Technology_Industry_Agriculture"
-			elif('K' in nid):
-				return "Humanities"
-			elif('L' in nid):
-				return "Information_Science"
-			elif('M' in nid):
-				return "Named_Groups"
-			elif('N' in nid):
-				return "Health_Care"
-			elif('V' in nid):
-				return "Publication_Characteristics"
-			else:
-				return "Geographicals"
-	else:
-		return "otherTokens"	
-
-
-def exactSearch(token,db,time = False,limit = 100,TFIDF = False):
+def keywordSearch(server,token,db,time = False,limit = 100,TFIDF = False):
+	'''
+	key word search
+	Parameters
+	• server – a couchdb server object with admin authority
+	• token  - the token to be searched, its a catagory if its in square brackets,"[Disease]"
+	• db     – name of a couch database that will search from
+	• time   – time = False, do not display the execution time by default
+	• limit  – limit = 100, return the first 100 found docs by default
+	• TFIDF  – sort = false, not sort the result by TFIDF 
+	returns a list of the ids of all docs found
+	
+	for example:
+	docs = keywordSearch(server,"blood","demosearch",time = true,limit = 500, TFIDF = true)
+	'''
 	starttime = datetime.datetime.now()
 	database = server[db]
 
 	if TFIDF:
 		match = {}
-		today=datetime.date.today()
-		databaseStats = database.get(str(today))
-		databaseDocsCount = databaseStats["databaseDocsCount"]
-		databaseWordsCount = databaseStats["databaseWordsCount"]
+		###get stats of the database
+		stats = database.get("stats")
+		databaseDocsCount = stats["DocsCount"]
+		databaseWordsCount = stats["WordsCount"]
 
-		mango = {'selector':{"tokens."+token:{"$gt":0}},"fields":["_id","tokens."+token,"wordsCount"],"limit":limit}
-		for row in database.find(mango):
-			##print(row["tokens"][token])
-			match[row.id] = [row["tokens"][token],row["wordsCount"]]
-		IDF = math.log(databaseDocsCount/(len(match)+1))
-		for item in match:
-			TF = match[item][0]/match[item][1]
-			match[item] = TF * IDF	
-		match = sorted(match.items(), key=lambda kv: kv[1])
-		match.reverse()
+		### if search for a category
+		if token[0] == '[':
+			category = token.lower()[1:-1]
+			mango = {'selector':{"Category."+category:{"$gt":0}},"fields":["_id","Category."+category,"WordsCount"],"limit":limit}
+
+			for row in database.find(mango):
+				match[row.id] = [row["Category"][term],row["WordsCount"]]
+			###compute tfidf
+			IDF = math.log(databaseDocsCount/(len(match)+1))
+			for item in match:
+				TF = match[item][0]/match[item][1]
+				match[item] = TF * IDF	
+			###sort
+			match = sorted(match.items(), key=lambda kv: kv[1])
+			match.reverse()
+		else:
+		### search for a particular term
+			term = termNormalise.normalise(token.lower())
+			mango = {'selector':{"Tokens."+term:{"$gt":0}},"fields":["_id","Tokens."+term,"WordsCount"],"limit":limit}
+
+			for row in database.find(mango):
+				#print(row.id)
+				match[row.id] = [row["Tokens"][term],row["WordsCount"]]
+			###compute tfidf
+			IDF = math.log(databaseDocsCount/(len(match)+1))
+			for item in match:
+				TF = match[item][0]/match[item][1]
+				match[item] = TF * IDF	
+			###sort
+			match = sorted(match.items(), key=lambda kv: kv[1])
+			match.reverse()
 	else:
 		match = []
-		mango = {'selector':{"tokens."+token:{"$gt":0}},"fields":["_id"],"limit":limit}
+		if token.lower()[0] == '[':
+			category = token.lower()[1:-1]
+			mango = {'selector':{"Category."+category:{"$gt":0}},"fields":["_id"],"limit":limit}
+		else:
+			term = termNormalise.normalise(token.lower())
+			mango = {'selector':{"Tokens."+term:{"$gt":0}},"fields":["_id"],"limit":limit}
 
 		for row in database.find(mango):
 			match.append(row.id)
@@ -100,20 +102,38 @@ def exactSearch(token,db,time = False,limit = 100,TFIDF = False):
 	return match
 
 
-def semanticSearch(token,db,time = False,limit = 100):
+def semanticSearch(server,token,db,time = False,limit = 100):
+	'''
+	semanticSearch, find docs that contains a token or its descendants
+	Parameters
+	• server – a couchdb server object with admin authority
+	• token  - the token to be searched, its a catagory if its in square brackets,"[Disease]"
+	• db     – name of a couch database that will search from
+	• time   – time = False, do not display the execution time by default
+	• limit  – limit = 100, return the first 100 found docs by default
+	returns a list of the ids of all docs found
+	'''
 	starttime = datetime.datetime.now()
 
 	database = server[db]
 
 	match = []
 	selectors = []
+	if token[0] == '[':
+		cate = token.lower()[1:-1]
+		descendants = category.getDescendants(cate)
+		for c in descendants:
+			selectors.append({"Category."+c:{"$gt":0}})	
+		mango = {'selector':{"$or":selectors},"fields":["_id"],"limit":limit}
+	else:
+		term = termNormalise.normalise(token.lower())
+		tokens = meshTree.getDescendants(term)
+		#print(tokens)
+		for t in tokens:
+			selectors.append({"Tokens."+t:{"$gt":0}})
 
-	tokens = meshTree.getDescendants(token)
-	for token in tokens:
-		selectors.append({"tokens."+token:{"$gt":0}})
-
-	mango = {'selector':{"$or":selectors},"fields":["_id"],"limit":limit}
-	##print(mango)
+		mango = {'selector':{"$or":selectors},"fields":["_id"],"limit":limit}
+		##print(mango)
 
 	for row in database.find(mango):
 		match.append(row.id)
@@ -128,14 +148,27 @@ def semanticSearch(token,db,time = False,limit = 100):
 
 	return match
 
-def tripletsSearch(subject,predicate,obj,db,time = False,limit = 100):
+def tripletsSearch(server,subject,predicate,obj,db,time = False,limit = 100):
+	'''
+	a base case of predicate search. a triplet is a relation that "subject predicate object"
+	Parameters
+	• server – a couchdb server object with admin authority
+	• subject  - the subject token
+	• predicate - the predicate token, or relation
+	• obj  - the object token
+	• db     – name of a couch database that will search from
+	• time   – time = False, do not display the execution time by default
+	• limit  – limit = 100, return the first 100 found docs by default
+	returns a list of the ids of all docs found
+	'''
 	starttime = datetime.datetime.now()
-
 	database = server[db]
-
 	match = []
 
-	mango = {'selector':{"predications."+subject+predicate+obj:{"$gt":0}},"fields":["_id"],"limit":limit}
+	subject_term = termNormalise.normalise(subject.lower())
+	obj_term = termNormalise.normalise(obj.lower())
+
+	mango = {'selector':{"Predications."+subject_term+predicate.lower()+obj_term:{"$gt":0}},"fields":["_id"],"limit":limit}
 
 	for row in database.find(mango):
 		match.append(row.id)
@@ -151,14 +184,32 @@ def tripletsSearch(subject,predicate,obj,db,time = False,limit = 100):
 	return match
 
 
-def predicateSearch(token,predicate,db,time = False,limit = 100):
+def predicateSearch(server,token,predicate,db,time = False,limit = 100):
+	'''
+	a extend of predicate search. subject or object has not been indicated
+	Parameters
+	• server – a couchdb server object with admin authority
+	• token  - could be a subject or object token
+	• predicate - the predicate token, or relation
+	• db     – name of a couch database that will search from
+	• time   – time = False, do not display the execution time by default
+	• limit  – limit = 100, return the first 100 found docs by default
+	returns a list of the ids of all docs found
+	'''
 	starttime = datetime.datetime.now()
-
 	database = server[db]
-
 	match = []
 
-	mango = {'selector':{"$or":[{"predications."+token+predicate:{"$gt":0}},{"predications."+predicate+token:{"$gt":0}}]},"fields":["_id"],"limit":limit}
+	pre = predicate.lower()
+	if token[0] == '[':
+		cate = token.lower()[1:-1]
+		mango = {'selector':{"$or":[{"Predications."+cate+pre:{"$gt":0}},{"Predications."+pre+cate:{"$gt":0}}]},"fields":["_id"],"limit":limit}
+		print(mango)
+
+	else:
+		term = termNormalise.normalise(token.lower())
+		mango = {'selector':{"$or":[{"Predications."+term+pre:{"$gt":0}},{"Predications."+pre+term:{"$gt":0}}]},"fields":["_id"],"limit":limit}
+		print(mango)
 
 	for row in database.find(mango):
 		match.append(row.id)
@@ -173,75 +224,61 @@ def predicateSearch(token,predicate,db,time = False,limit = 100):
 
 	return match
 
-def semanticPredicateSearch(token,predicate,db,time = False,limit = 100):
+def semanticPredicateSearch(server,subject,predicate,obj,db,time = False,limit = 100):
+	'''
+	a combination of semantic search and predicate search expand all possible candidates
+	Parameters
+	• server – a couchdb server object with admin authority
+	• subject  - the subject token，can also be a category
+	• predicate - the predicate token, or relation
+	• obj  - the object token，can also be a category
+	• db     – name of a couch database that will search from
+	• time   – time = False, do not display the execution time by default
+	• limit  – limit = 100, return the first 100 found docs by default
+	returns a list of the ids of all docs found
+	'''
 	starttime = datetime.datetime.now()
-
 	database = server[db]
-
 	match = []
 	selectors = []
 
-	tokens = meshTree.getDescendants(token)
-	for token in tokens:
-		selectors.append({"predications."+token+predicate:{"$gt":0}})
-		selectors.append({"predications."+predicate+token:{"$gt":0}})
-
-	##print(selectors)
-
-	mango = {'selector':{"$or":selectors},"fields":["_id"],"limit":limit}
-
-	for row in database.find(mango):
-		match.append(row.id)
-
-	endtime = datetime.datetime.now()
-	executionTime = (endtime - starttime).seconds
-
-	if(time == False):
-		pass
-	else:
-		print(executionTime)
-
-	return match
-
-def mango(time = False):
-
-	starttime = datetime.datetime.now()
-
-	database = server["demo8search"]
-
-	match = []
-
-	path = "_design/Diseases/_view/new-view"
-
-	mango = {'selector':{"Garbage":{"$gt":1}},"fields":["_id"]}
-
-	for row in database.find(mango):
-		print(row["_id"])
-
-	endtime = datetime.datetime.now()
-	executionTime = (endtime - starttime).seconds
-
-	if(time == False):
-		pass
-	else:
-		print(executionTime)
+	if (subject[0] != '[') and (obj[0] != '['):
 		
-def mango2(time = False):
+		subjects = meshTree.getDescendants(subject.lower())
+		#print(subjects)
+		
+		objs = meshTree.getDescendants(obj.lower())
+		print(objs)
+		for s in subjects:
+			print(s)
+			for o in objs:
+				print(o)
+				selectors.append({"Predications."+s+predicate.lower()+o:{"$gt":0}})
+				print(s+predicate.lower()+o)
 
-	starttime = datetime.datetime.now()
+	elif subject[0] == '[' and obj[0] != '[':
+		cate = subject.lower()[1:-1]
+		descendants = category.getDescendants(cate)
+		objs = meshTree.getDescendants(obj.lower())
 
-	database = server["demo7"]
+		for d in descendants:
+			for o in objs:
+				selectors.append({"Predications."+d+predicate.lower()+o:{"$gt":0}})
+				print(d+predicate.lower()+o)
+	else:
+		subjects = meshTree.getDescendants(subject.lower())
+		print(subjects)
+		cate = obj.lower()[1:-1]
+		descendants = category.getDescendants(cate)
 
-	match = []
+		for s in subjects:
+			for d in descendants:
+				selectors.append({"Predications."+s+predicate.lower()+d:{"$gt":0}})
 
-	path = "_design/Diseases/_view/new-view"
-
-	mango = {'selector':{"$or":[{"Pain":{"$gt":0}},{"Tables":{"$gt":0}}]},"fields":["_id"]}
-
-	print(type(mango))
-
+	mango = {'selector':{"$or":selectors},"fields":["_id"],"limit":limit}
+	print(mango)
 	for row in database.find(mango):
-		print(row["_id"])
+		match.append(row.id)
 
 	endtime = datetime.datetime.now()
 	executionTime = (endtime - starttime).seconds
@@ -249,43 +286,7 @@ def mango2(time = False):
 	if(time == False):
 		pass
 	else:
-		print(executionTime)		
+		print(executionTime)
 
-def mango3(tokens,time = False):
-	starttime = datetime.datetime.now()
-
-	database = server["demo7"]
-
-	match = []
-	selectors = []
-
-	path = "_design/Diseases/_view/new-view"
-
-	for token in tokens:
-		selectors.append({token:{"$gt":0}})
-
-
-	mango = {'selector':{"$or":selectors},"fields":["_id"]}
-
-	for row in database.find(mango):
-		print(row["_id"])
-
-	endtime = datetime.datetime.now()
-	executionTime = (endtime - starttime).seconds
-
-	if(time == False):
-		pass
-	else:
-		print(executionTime)	
-
-
-
-
-
-
-
-
-
-
-
+	return match
 

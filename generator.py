@@ -10,6 +10,9 @@ text = ["Chemicals","Diseases","Genes","chemicals","amino acids","carbohydrates"
 		"neoplasms","asthenopia","glaucoma","cysts","hamartoma","genes","a3226_GR01","a3226_GT04","a3226_GT14",
 		"a3230_GT11","a3235_GT02","treat","cause","influence"]
 
+Category = ["disease","neoplasms","cysts","hamartoma","infection","coinfection","sepsis","toxemia",
+			"chemicals","lipids","glycerides","natuderm"]
+
 Relations = ["treat","cause","influence","Frequency-Drug","Duration-Drug","Strength-Drug","Route-Drug","Dosage-Drug","Form-Drug","Reason-Drug"]
 
 mydict = meshTree.meshDic
@@ -20,14 +23,15 @@ def ge():
 	##T1\tDrug 1000 1025\tanticoagulant medications\nT2\tDrug 3620 3628\tdilaudid\n
 	##R1\tRoute-Drug Arg1:T3 Arg2:T2
 	tokenIndexs = []
-	for i in range(250000):
+	for i in range(2000):
 		file ="data/"+str(i)+".ann"
 		f = open(file,'w')
 		tokenCount = random.randint(1,80)																		
 		for k in range(tokenCount):
 			tag="T"+str(k)
+			cindex = random.randint(0,11)
 			token = myKeys[random.randint(0,28936)]
-			line=tag+"\t"+"Category 0 0\t"+token+'\n'
+			line=tag+"\t"+Category[cindex]+" 0 0\t"+token+'\n'
 			f.write(line)
 
 
@@ -42,7 +46,7 @@ def ge():
 
 
 def ge1():
-	for i in range(250000):
+	for i in range(2000):
 		file ="data/"+str(i)+".txt"
 		f = open(file,'w')
 		wordCount = random.randint(10,200)

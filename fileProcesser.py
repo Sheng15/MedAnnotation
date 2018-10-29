@@ -4,8 +4,9 @@
 import sys
 import os
 import datetime
-
 import meshTree
+import mmh3
+import couchdb
 
 
 ###########################################################################################################
@@ -79,8 +80,8 @@ def updateDic(token,dic):
 	if token in dic.keys():
 			num = dic[token] +1
 			dic[token] = num
-		else:
-			dic[token] = 1
+	else:
+		dic[token] = 1
 
 def save_annotated_text(server,user,db,clinical_trial,annotation_file):
 
@@ -93,13 +94,14 @@ def save_annotated_text(server,user,db,clinical_trial,annotation_file):
 	id = computeID(text,user)
 
 	####step2.count word of clinical trial
-	wordsCount = fileProcesser.readText(clinical_trial)
+	wordsCount = countWord(clinical_trial)
 
 
 	###step3.process annotation file，save the frequency of appearance of category,token,relation into a dict
 	tokensDic = {}
 	tokenIndex = {}
 	categoryDic = {}
+	categoryIndex = {}
 	relations = []
 	predicationsDic = {}
 
@@ -108,15 +110,16 @@ def save_annotated_text(server,user,db,clinical_trial,annotation_file):
 	lines = content.split('\n') ## every line in the annotation file
 	for i in range(len(lines)-1): ##aviod last line, where has noting
 		splitedLine=lines[i].split('\t')
-		index = splitedLine[0]    ## T or R
+		index = splitedLine[0]   ## T or R
 
 		if(index[0]=='T'):###tokens
 			## update the dict of category
 			category = splitedLine[1].split(' ')[0].lower()
+			categoryIndex[index.lower()] = category
 			updateDic(category,categoryDic)
 			## update the dict of tokens
 			token = splitedLine[2].lower() ### transfer all character to lower case
-			tokenIndex[index] = token
+			tokenIndex[index.lower()] = token
 			updateDic(token,tokensDic)
 		else:
 			##relations
@@ -131,9 +134,14 @@ def save_annotated_text(server,user,db,clinical_trial,annotation_file):
 	for item in relations:
 		arg1 = tokenIndex[item["Arg1"]]
 		arg2 = tokenIndex[item["Arg2"]]
+		arg1Category = categoryIndex[item["Arg1"]]
+		arg2Category = categoryIndex[item["Arg2"]]
 		relation = item["relation"]
+		#print([arg1Category,arg1,relation,arg2Category,arg2])
 
-		predications = [arg1+relation,relation+arg2,arg1+relation+arg2]
+		predications = [arg1Category+relation,arg1Category+relation+arg2,arg1Category+relation+arg2Category,
+						arg1+relation,arg1+relation+arg2,arg1+relation+arg2Category,
+						relation+arg2,relation+arg2Category]
 
 		for predicate in predications:
 			updateDic(predicate,predicationsDic)
@@ -146,7 +154,7 @@ def save_annotated_text(server,user,db,clinical_trial,annotation_file):
 			"User":user,
 			"Clinical_Trial":text,
 			"Annotation":annotation_ann,
-			"Date":date
+			"Date":str(date)
 			}
 			
 	_doc2 = {
@@ -161,11 +169,11 @@ def save_annotated_text(server,user,db,clinical_trial,annotation_file):
 	try:
 		fileDatabase = server[db]
 		searchDatabase = server[db+"search"]
-		fileDatabase[id] = doc1
-		searchDatabase[id] = doc2
+		fileDatabase[id] = _doc1
+		searchDatabase[id] = _doc2
 	except Exception as e:
 		print("Failed to save file "+clinical_trial)
-
+		print(e)
 	####step6.update stats
 	try:
 		stats = searchDatabase.get("stats")
@@ -173,9 +181,25 @@ def save_annotated_text(server,user,db,clinical_trial,annotation_file):
 		docsCount = stats["DocsCount"] + 1
 		stats["WordsCount"] = wordsCount
 		stats["DocsCount"] = docsCount
-		searchDatabase.save(stats)
+		searchDatabase["stats"] = stats
 	except Exception as e:
 		print("Failed to update stats")
+		print(e)
 		
-		
-	
+
+def save(server,user,path,db):
+	folder = path+"/saved"
+	if not os.path.exists(folder):
+		os.makedirs(folder)
+	else:
+		pass
+
+	mylist = os.listdir(path)
+	for line in mylist:
+		filepath = os.path.join(path, line)
+		if os.path.isdir(filepath):
+			print("dir:" + filepath)
+		if os.path.isfile(filepath):
+			if filepath[:-1] =="t":
+				annotation_file = filepath[:-3]	+ ".ann"
+				save_annotated_text(server,user,db,filepath,annotation_file)

@@ -1,6 +1,8 @@
 ##author Sheng Tang
 ##08/09/2018  16:40
 
+
+
 ##mainly use couchdb-python library，source code at https://github.com/djc/couchdb-python
 ##Document can be find at https://couchdb-python.readthedocs.io/en/latest/
 
@@ -13,34 +15,32 @@
 #python3
 
 import couchdb
-import json
 import sys
 import os
 import fileProcesser 
-import datetime
-import user
+import mmh3
 
-from treelib import Node, Tree
+
 
 
 ###############################################################################################
 ###############################    connect to couch db   ######################################
 ###############################################################################################
 
-	'''
-	recommendation of general usage there：
-	server = connect(ip_address) //get a basic couch server
-	try :
-		authentication = loginUser(server，username， password) 
-		authServer = authConnection(ip_address,username,password)
-		logoutuser(authentication)
-	except Exception as e:
-		print("failed to establish an authentication connection!")
+'''
+recommendation of general usage there：
+server = connect(ip_address) //get a basic couch server
+try :
+	authentication = loginUser(server，username， password) 
+	authServer = authConnection(ip_address,username,password)
+	logoutuser(authentication)
+except Exception as e:
+	print("failed to establish an authentication connection!")
 
-	## this will make sure only establish valid connection
-	## should have some better solution there！！
+## this will make sure only establish valid connection
+## should have some better solution there！！
 
-	'''
+'''
 
 def connect(ip_address):
 	'''
@@ -174,7 +174,7 @@ def updatePermission(server,db,newPermission):
 #######################               user management                       ###################
 ###############################################################################################	
 
-def addUser(server,username,password):
+def addUser(ip_address,adminUserName,adminPassword,username,password):
 	'''
 	create a user to the database, three things have been done.
 	1. create and add a new user to couch if not collide；
@@ -197,15 +197,23 @@ def addUser(server,username,password):
 		databaseSearch = username + "search"
 		server.create(database)
 		server.create(databaseSearch)
+		### init stats
+		_doc = {
+			"WordsCount":0,
+			"DocsCount":0
+			}
+		databaseSearch[stats] = _doc
 		##step 3: set permission
 		admins = [adminUserName,username]
 		members = [adminUserName,username]
+		setPermissions(server,database,admins,members)
+		setPermissions(server,databaseSearch,admins,members)
 
 	except Exception as e:
 		print(e)
 
 
-def removeUser(username,purge = False):
+def removeUser(server,username,purge = False):
 	'''
 	remove a user 
 	Parameters
@@ -218,13 +226,77 @@ def removeUser(username,purge = False):
 		try:
 			server.remove_user(username)
 		except Exception as e:
-			print(e)
+			print("failed to remove user")
 	else:
 		## purge a user
 		try:
 			server.remove_user(username)
 			server.delete(username)
-			server.delete(username+"Search")
+			server.delete(username+"search")
 		except Exception as e:
-			print(e)
-		
+			print("failed to remove user")
+
+
+########################################################################################################
+####################  simple method to get original clinical trials and annotation   ###################
+####################  		especially when the ID in database is given  			 ###################
+########################################################################################################
+
+def get(server,db,id):
+	'''
+	get the clinical trial and annotation file from a particular document in the database 
+	Parameters
+	• server – a couchdb server object with admin authority
+	• db     – name of a couch database that save the original clinical files and annotations
+	• id   	 – identifier of a document in couch database，
+	raise exception if there is
+	returns clinical trial and its annotation file
+	'''
+	try:
+		database = server[db]
+		_doc = database.get(id)
+		clinical_trial = _doc[Clinical_Trial]
+		annotation = _doc[Annotation]
+		return clinical_trial,annotation
+	except Exception as e:
+		print(e)
+
+
+def get_annotation(server,db,file,user):
+	'''
+	find the annotation made by a particular user to a particular clinical trial
+	Parameters
+	• server – a couchdb server object with admin authority
+	• db     – name of a couch database that save the original clinical files and annotations
+	• file   - path of a clinical trial
+	• user 	 - identifier of the user， usually the user name
+	returns the annotation file 
+	'''
+	text = fileProcesser.readFile(file)
+	doc_id = fileProcesser.computeID(text,user)
+
+	annotation = get(server,db,doc_id)[1]
+	return annotation
+
+def get_annotation_all(server,db,file):
+	'''
+	find all the annotations made  to a particular clinical trial
+	Parameters
+	• server – a couchdb server object with admin authority
+	• db     – name of a couch database that save the original clinical files and annotations
+	• file   - path of a clinical trial
+	returns the id as an array of all documents found in databse
+	'''
+
+	result = []
+	database = server[db]
+
+	text = fileProcesser.readFile(file)
+	text_id = str(mmh3.hash(text,signed=False))
+	start_key= text_id
+	end_key = text_id +"ZZZZZZZZZZ"
+
+	for item in database.view('_all_docs', startkey=start_key, endkey=end_key):
+		result.append(item.id)
+
+	return result

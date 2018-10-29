@@ -33,7 +33,7 @@ N. Health Care
 V. Publication Characteristics 
 Z. Geographicals
 '''
-CATAGORY = ["anatomy","organisms","diseases","Cchemicals and drugs","analytical, diagnostic and therapeutic techniques and equipment","psychiatry and psychology","phenomena and processes","disciplines and occupations",
+CATAGORY = ["anatomy","organisms","diseases","chemicals and drugs","analytical, diagnostic and therapeutic techniques and equipment","psychiatry and psychology","phenomena and processes","disciplines and occupations",
 "anthropology, education, sociology and social phenomena","technology, industry, agriculture","humanities","information science","named groups","health care","publication characteristics","geographicals"]
 
 #####################################################################
@@ -49,11 +49,11 @@ def readTree():
 	tokens = []
 
 	with open(TREE_PATH,'rb') as f:
-		data = f.read()
+		data = f.read().lower()
 		contents = data.decode('utf-8').split('\n')
 
 	for content in contents:
-		token = content.split(';').lower()
+		token = content.split(';')
 		tokens.append(token)
 	return tokens[:-1]##the last token is null
 
@@ -140,7 +140,7 @@ def loadMeshTree():
 	returns a tree object and a dict object of mesh
 	and you are ready to use mesh now!
 	'''
-	tokens = readTree(TREE_PATH)			
+	tokens = readTree()			
 	meshTree = creatTree(tokens)
 	meshDic = meshDict(tokens)
 	return meshTree,meshDic
@@ -235,7 +235,7 @@ def getDescendants(token,distance = False):
 	in this project, use this method to support semantic search
 	'''	
 	if distance == False:
-		descendants = []
+		descendants = [token]
 		if (containsToken(token)):
 			nids = meshDic[token]
 			for nid in nids:
@@ -248,7 +248,7 @@ def getDescendants(token,distance = False):
 						descendants.append(node.tag)
 		return descendants
 	else:
-		descendants = {}
+		descendants = {token:1}
 		if (containsToken(token)):
 			nids = meshDic[token]
 			for nid in nids:
