@@ -10,8 +10,8 @@ import couchdb
 
 
 ###########################################################################################################
-#############				Methods that can be used to save file into database				  ############# 
-#############				inclouding：save raw file or process it for query				  #############
+#############				Methods that can be used to save file into database   ############# 
+#############				inclouding：save raw file or process it for query     #############
 ###########################################################################################################
 #python3
 
