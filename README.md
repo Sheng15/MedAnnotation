@@ -11,8 +11,8 @@ Couchdb with 2.0 or higher.
 ## Python modules setup
 ```
 pip install mmh3
-pip install couchdb ( "https://couchdb-python.readthedocs.io/en/latest/" for more detials)
-pip install treelib  ("https://treelib.readthedocs.io/en/latest/pyapi.html" for more detials)
+pip install couchdb //"https://couchdb-python.readthedocs.io/en/latest/" for more detials
+pip install treelib  //"https://treelib.readthedocs.io/en/latest/pyapi.html" for more detials
 ```
 
 ## CouchDB setup
