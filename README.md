@@ -19,9 +19,11 @@ pip install treelib  //"https://treelib.readthedocs.io/en/latest/pyapi.html" for
 
 For windows and macOS user, installation from binaries is recommended.
 After installation, visit http://127.0.0.1:5984/_utils#setup for first time setup.
+---
 ** choose single node
 ** set admin of the database
 ** bind a private or public ip address to couchdb
+---
 
 
 For Ubuntu(16.4.0) user,just run
