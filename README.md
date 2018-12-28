@@ -9,10 +9,11 @@ Require python with 3.5 or higher,
 Couchdb with 2.0 or higher.
 
 ## Python modules setup
-
+```
 pip install mmh3
 pip install couchdb ( "https://couchdb-python.readthedocs.io/en/latest/" for more detials)
 pip install treelib  ("https://treelib.readthedocs.io/en/latest/pyapi.html" for more detials)
+```
 
 ## CouchDB setup
 
@@ -86,7 +87,7 @@ $ fileProcesser.save_annotated_text(server,"newUser","demo","example.txt","examp
 ```
 $ fileProcesser.save(server,"newUser","folder_path","demo")
 ```
---------------------------------------------------------------
+
 ### Load meshTree
 meshTree is a tree object, use meshTree.show() to print the detial of the tree
 ```
@@ -136,3 +137,7 @@ $ result1 = dbQuery.semanticPredicateSearch(server,"blood","cause","disease","de
 $ result2 = dbQuery.semanticPredicateSearch(server,"blood","cause","[disease]","demosearch")
 $ result3 = dbQuery.semanticPredicateSearch(server,"[chemocals]","cause","[disease]","demosearch")
 ```
+# TODO List
+1. Normalising of entities and concepts
+2. Implementation of catagory of entities and concepts
+3. Building index of each particular entity and concept.
