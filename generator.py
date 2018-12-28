@@ -3,7 +3,9 @@ import random
 
 import meshTree
 
-
+'''
+geneate sample docs for test
+'''
 
 text = ["Chemicals","Diseases","Genes","chemicals","amino acids","carbohydrates","cleonine","desmopyridine",
 		"carbasugars","sugar acids","gluconates","calcium gluconate","sanasol","diseases","eye diseases",
